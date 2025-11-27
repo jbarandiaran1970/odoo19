@@ -1,9 +1,12 @@
+version: '3.8'
+
 services:
   odoo:
     image: odoo:19
     container_name: odoo19-app
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     ports:
       - "8069:8069"
     environment:
@@ -11,13 +14,25 @@ services:
       - USER=odoo
       - PASSWORD=odoo_password
       - DB_FILTER=^.*$
-      - WORKERS=4
-      - MAX_CRON_THREADS=1
-      - LIMIT_TIME_CPU=600
-      - LIMIT_TIME_REAL=1200
     volumes:
       - odoo_data:/var/lib/odoo
       - odoo_addons:/mnt/extra-addons
+    command: >
+      bash -c "
+      odoo -i base -c /etc/odoo/odoo.conf 
+      --db_user=odoo 
+      --db_password=odoo_password 
+      --db_host=db 
+      --db_port=5432 
+      -d odoo 
+      --without-demo=all 
+      --stop-after-init &&
+      odoo -c /etc/odoo/odoo.conf 
+      --db_user=odoo 
+      --db_password=odoo_password 
+      --db_host=db 
+      --db_port=5432
+      "
     networks:
       - odoo-network
 
@@ -46,4 +61,3 @@ volumes:
 networks:
   odoo-network:
     driver: bridge
-
