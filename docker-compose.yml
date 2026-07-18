@@ -3,7 +3,8 @@ services:
     image: odoo:19
     container_name: odoo19-app
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     ports:
       - "8069:8069"
     environment:
@@ -15,11 +16,19 @@ services:
       - MAX_CRON_THREADS=1
       - LIMIT_TIME_CPU=600
       - LIMIT_TIME_REAL=1200
+      - LIMIT_MEMORY_HARD=2048
+      - LIMIT_MEMORY_SOFT=1536
+      - LIMIT_REQUEST=8192
     volumes:
       - odoo_data:/var/lib/odoo
       - odoo_addons:/mnt/extra-addons
     networks:
       - odoo-network
+    restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
 
   db:
     image: postgres:15
@@ -28,15 +37,35 @@ services:
       - POSTGRES_USER=odoo
       - POSTGRES_PASSWORD=odoo_password
       - POSTGRES_DB=odoo
+      - POSTGRES_MAX_CONNECTIONS=200
+      - POSTGRES_SHARED_BUFFERS=512MB
+      - POSTGRES_EFFECTIVE_CACHE_SIZE=1536MB
+      - POSTGRES_WORK_MEM=16MB
+      - POSTGRES_MAINTENANCE_WORK_MEM=128MB
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./postgres-performance.conf:/etc/postgresql/postgresql.conf.d/performance.conf
     networks:
       - odoo-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U odoo"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
       retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    command: >
+      postgres
+      -c shared_buffers=512MB
+      -c effective_cache_size=1536MB
+      -c work_mem=16MB
+      -c maintenance_work_mem=128MB
+      -c max_connections=200
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
 
 volumes:
   odoo_data:
@@ -46,4 +75,3 @@ volumes:
 networks:
   odoo-network:
     driver: bridge
-
